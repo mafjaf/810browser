@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>810browser</title>
+<style>
+  :root {
+    --bg0: #0f0f0f;
+    --bg1: #181818;
+    --bg2: #212121;
+    --bg3: #2a2a2a;
+    --bg4: #333333;
+    --border: #2a2a2a;
+    --border2: #383838;
+    --text: #b0b0b0;
+    --text-dim: #484848;
+    --text-hi: #e8e8e8;
+    --green: #55aa77;
+    --green-dim: #2a4a35;
+    --red: #aa4444;
+    --yellow: #887722;
+    --bar-w: 44px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Courier New', Courier, monospace;
+    background: var(--bg0); color: var(--text);
+    display: flex; flex-direction: row;
+    height: 100vh; overflow: hidden;
+  }
+
+  /* ============ メインエリア ============ */
+  #app-body { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+  #browser-area { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+  /* 垂直タブ */
+  body.v-mode #browser-area { flex-direction: row; }
+  body.v-mode #vtab-wrapper {
+    display: flex !important; flex-direction: column;
+    width: 190px; border-right: 1px solid var(--border);
+    background: var(--bg1); flex-shrink: 0;
+  }
+  body.v-mode #vtab-wrapper #tabs {
+    flex-direction: column; overflow-y: auto; overflow-x: hidden;
+    padding: 6px; gap: 3px; flex: 1; height: auto;
+  }
+  body.v-mode .tab { border-radius: 5px; min-width: 0; width: 100%; border-bottom: 1px solid var(--border) !important; }
+  body.v-mode #content-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  body.v-mode #htab-wrapper { display: none; }
+  #vtab-wrapper { display: none; }
+
+  /* ============ ロック ============ */
+  #lock-screen {
+    position: fixed; inset: 0; background: var(--bg0); z-index: 9999;
+    display: flex; justify-content: center; align-items: center;
+  }
+  #lock-box {
+    border: 1px solid var(--border2); padding: 48px 40px; background: var(--bg1);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.96); text-align: center;
+    display: flex; flex-direction: column; align-items: center;
+    border-radius: 8px; min-width: 300px;
+  }
+  #pass-input {
+    width: 100%; padding: 11px 16px; border: 1px solid var(--border2);
+    background: var(--bg2); color: var(--text-hi); outline: none;
+    font-size: 20px; text-align: center; margin-bottom: 12px;
+    border-radius: 5px; font-family: monospace; letter-spacing: 6px;
+  }
+  #unlock-btn {
+    background: var(--bg3); color: var(--text-hi); border: 1px solid var(--border2);
+    padding: 10px 40px; cursor: pointer; font-weight: bold; font-size: 11px;
+    letter-spacing: 2px; border-radius: 5px; font-family: 'Courier New'; transition: background 0.15s;
+  }
+  #unlock-btn:hover { background: var(--bg4); }
+
+  /* ============ トップバー ============ */
+  #topbar {
+    background: var(--bg1); padding: 7px 10px;
+    display: flex; gap: 5px; align-items: center;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .tb-btn {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 5px 10px; cursor: pointer; color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; transition: background 0.1s, color 0.1s;
+    font-family: 'Courier New'; font-size: 12px; white-space: nowrap; flex-shrink: 0;
+  }
+  .tb-btn:hover { background: var(--bg3); color: var(--text-hi); }
+  .tb-btn:active { transform: translateY(1px); }
+  #url-bar {
+    flex: 1; padding: 6px 12px; border: 1px solid var(--border);
+    background: var(--bg2); color: var(--text-hi); font-family: monospace;
+    outline: none; border-radius: 4px; font-size: 12px;
+  }
+  #btn-go { background: var(--bg3); color: var(--text-hi); font-weight: bold; }
+  #btn-newtab { background: var(--green-dim); color: #8bc; border-color: var(--green-dim); }
+  #btn-newtab:hover { background: var(--green); color: #fff; }
+  .bm-btn-icon { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  #htab-wrapper { background: var(--bg0); flex-shrink: 0; }
+  #tabs {
+    display: flex; background: var(--bg0); padding: 0 5px 5px; gap: 3px;
+    overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 5px; padding: 6px 9px;
+    background: var(--bg1); color: var(--text-dim); cursor: pointer;
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 5px 5px; min-width: 115px; max-width: 185px;
+    font-size: 11px; transition: background 0.1s; flex-shrink: 0;
+  }
+  .tab:hover { background: var(--bg2); color: var(--text); }
+  .tab.active { background: var(--bg2); color: var(--text-hi); border-top: 1px solid var(--bg2); z-index: 10; position: relative; }
+  .tab-fav { width: 13px; height: 13px; flex-shrink: 0; font-size: 9px; display: flex; align-items: center; }
+  .tab-fav img { width: 13px; height: 13px; }
+  .tab-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab-close {
+    background: transparent !important; border: none !important;
+    color: var(--text-dim); font-size: 13px; padding: 0 1px; border-radius: 3px;
+    cursor: pointer; line-height: 1; transition: color 0.1s !important;
+  }
+  .tab-close:hover { color: var(--red) !important; }
+
+  /* ============ ビュー ============ */
+  #content-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #views { flex: 1; background: #fff; position: relative; display: flex; min-height: 0; }
+  webview { width: 100%; height: 100%; display: none; }
+  webview.active { display: flex; }
+  webview.setting-wv { max-width: 440px; margin: auto; }
+  .dark-views { background: var(--bg0) !important; }
+
+  /* ============ 右バー ============ */
+  #right-bar {
+    width: var(--bar-w);
+    background: var(--bg0);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 0; gap: 4px; flex-shrink: 0;
+  }
+  .rb-btn {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 7px; cursor: pointer; color: var(--text-dim);
+    transition: background 0.12s, color 0.12s;
+    position: relative; user-select: none;
+  }
+  .rb-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .rb-btn:hover { background: var(--bg3); color: var(--text); }
+  .rb-btn:active { transform: scale(0.93); }
+  /* アクティブ（そのタブが開いている）状態 */
+  .rb-btn.rb-on { color: var(--text-hi); background: var(--bg2); }
+  .rb-btn.rb-on::before {
+    content: ''; position: absolute; left: -1px; top: 8px; bottom: 8px;
+    width: 2px; background: var(--text-hi); border-radius: 0 1px 1px 0;
+  }
+  .rb-sep { width: 22px; height: 1px; background: var(--border); margin: 3px 0; }
+  .rb-spacer { flex: 1; }
+
+  /* ブックマークファビコンリスト */
+  #rb-fav-list {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; overflow-y: auto; overflow-x: hidden;
+    scrollbar-width: none; flex: 1;
+    padding: 2px 0;
+  }
+  #rb-fav-list::-webkit-scrollbar { display: none; }
+  .rb-fav-item {
+    width: 32px; height: 32px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; flex-shrink: 0;
+    transition: background 0.12s; user-select: none;
+  }
+  .rb-fav-item:hover { background: var(--bg3); }
+  .rb-fav-item:active { transform: scale(0.9); }
+  .rb-fav-item img { width: 18px; height: 18px; border-radius: 3px; display: block; }
+  .rb-fav-item .rb-fav-fallback {
+    width: 22px; height: 22px; border-radius: 5px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text-dim); font-weight: bold;
+    font-family: sans-serif;
+  }
+  /* ツールチップ */
+  .rb-fav-item::after {
+    content: attr(data-title);
+    position: absolute; right: calc(100% + 8px); top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg3); color: var(--text-hi);
+    font-size: 11px; font-family: 'Courier New'; white-space: nowrap;
+    padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border2);
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+    z-index: 999;
+  }
+  .rb-fav-item:hover::after { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ロック -->
+<div id="lock-screen">
+  <div id="lock-box">
+    <div style="font-size:10px;letter-spacing:4px;color:var(--text-dim);margin-bottom:4px;">810BROWSER</div>
+    <div style="font-size:18px;color:var(--text-hi);font-weight:bold;letter-spacing:2px;margin-bottom:28px;">■ LOCKED</div>
+    <input type="password" id="pass-input" placeholder="" onkeydown="if(event.key==='Enter')unlock()">
+    <button id="unlock-btn" onclick="unlock()">UNLOCK</button>
+    <p id="lock-msg" style="color:var(--red);font-size:11px;margin-top:12px;height:1.2em;letter-spacing:1px;"></p>
+  </div>
+</div>
+
+<!-- メイン -->
+<div id="app-body">
+  <div id="browser-area">
+    <div id="vtab-wrapper"></div>
+    <div id="content-area">
+      <div id="htab-wrapper"><div id="tabs"></div></div>
+      <div id="topbar">
+        <button class="tb-btn" onclick="back()">＜</button>
+        <button class="tb-btn" onclick="forward()">＞</button>
+        <button class="tb-btn" onclick="reload()">↻</button>
+        <input id="url-bar" placeholder="URL or Search..." onkeydown="if(event.key==='Enter')go()">
+        <button class="tb-btn" id="btn-go" onclick="go()">GO</button>
+        <!-- ブックマーク追加ボタン -->
+        <button class="tb-btn" id="btn-bm-add" onclick="addBookmark()" title="ブックマーク追加">
+          <svg class="bm-btn-icon" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <button class="tb-btn" id="btn-newtab" onclick="newTab()">＋</button>
+      </div>
+      <div id="views"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 右バー（ブックマーク一覧・設定） -->
+<div id="right-bar">
+  <!-- ブックマーク一覧タブを開く -->
+  <div class="rb-btn" id="rb-bm" onclick="openBookmarkTab()" title="ブックマーク一覧">
+    <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+  </div>
+  <div class="rb-sep"></div>
+  <!-- ブックマークしたサイトのファビコン一覧 -->
+  <div id="rb-fav-list"></div>
+  <div class="rb-sep"></div>
+  <!-- 設定 -->
+  <div class="rb-btn" id="rb-cfg" onclick="settings()" title="設定">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </div>
+</div>
+
+<script>
+const { ipcRenderer } = require('electron');
+let tabs = [], currentTabId = null, errorCount = 0;
+
+// ---- 設定同期 ----
+async function sync() {
+  const cfg = await ipcRenderer.invoke('get-settings');
+  document.body.classList.toggle('v-mode', !!cfg.vtabEnabled);
+  const tabsEl = document.getElementById('tabs');
+  if (cfg.vtabEnabled) document.getElementById('vtab-wrapper').appendChild(tabsEl);
+  else document.getElementById('htab-wrapper').appendChild(tabsEl);
+  if (cfg.password) localStorage.setItem('browser-pass', cfg.password);
+}
+sync().then(() => updateLockPlaceholder());
+
+// ---- ロック ----
+function unlock() {
+  const v = document.getElementById('pass-input').value;
+  const s = localStorage.getItem('browser-pass') || '114514';
+  if (v === s) { document.getElementById('lock-screen').style.display = 'none'; errorCount = 0; }
+  else {
+    errorCount++;
+    if (errorCount >= 3) { document.getElementById('lock-msg').innerText = 'SHUTTING DOWN...'; setTimeout(() => window.close(), 1000); }
+    else { document.getElementById('lock-msg').innerText = `INVALID (${errorCount}/3)`; document.getElementById('pass-input').value = ''; }
+  }
+}
+
+// ---- ロック画面プレースホルダー更新 ----
+function updateLockPlaceholder() {
+  const pass = localStorage.getItem('browser-pass') || '114514';
+  const len = pass.length;
+  document.getElementById('pass-input').placeholder = Array(len).fill('·').join(' ');
+}
+
+// ---- 履歴 ----
+function gh() { try { return JSON.parse(localStorage.getItem('bh') || '[]'); } catch(e) { return []; } }
+function addHistory(url, title) {
+  if (!url || url.startsWith('data:') || url.startsWith('file://') || url === 'about:blank') return;
+  let h = gh(); h.unshift({ url, title: title || url, t: Date.now() });
+  if (h.length > 500) h = h.slice(0, 500);
+  localStorage.setItem('bh', JSON.stringify(h));
+}
+
+// ---- ブックマーク ----
+function gb() { try { return JSON.parse(localStorage.getItem('bb') || '[]'); } catch(e) { return []; } }
+function addBookmark() {
+  const cur = tabs.find(t => t.id === currentTabId); if (!cur) return;
+  const url = (cur.view.getURL ? cur.view.getURL() : '') || cur.view.src || '';
+  const title = cur.textSpan.innerText || url;
+  if (!url || url.startsWith('data:') || url.includes('setting.html')) return;
+  let bm = gb();
+  if (bm.find(x => x.url === url)) { flashBM(); return; }
+  bm.unshift({ url, title, t: Date.now() });
+  localStorage.setItem('bb', JSON.stringify(bm));
+  flashBM();
+  renderRightBarFavs();
+}
+function flashBM() {
+  const btn = document.getElementById('btn-bm-add');
+  if (btn.dataset.flashing) return;
+  btn.dataset.flashing = '1';
+  const svg = btn.querySelector('svg');
+  if (svg) svg.style.display = 'none';
+  const chk = document.createElement('span');
+  chk.textContent = '\u2713';
+  chk.style.cssText = 'font-size:14px;color:var(--text-hi);font-weight:bold;';
+  btn.appendChild(chk);
+  setTimeout(() => {
+    chk.remove();
+    if (svg) svg.style.display = '';
+    delete btn.dataset.flashing;
+  }, 1500);
+}
+
+// ---- 右バー ファビコンリスト描画 ----
+function renderRightBarFavs() {
+  const list = document.getElementById('rb-fav-list');
+  if (!list) return;
+  const bm = gb();
+  list.innerHTML = '';
+  bm.forEach(x => {
+    const host = safeHost(x.url);
+    const item = document.createElement('div');
+    item.className = 'rb-fav-item';
+    item.setAttribute('data-title', x.title || x.url);
+    item.onclick = () => navToOrNewTab(x.url);
+
+    if (host) {
+      const img = document.createElement('img');
+      img.src = `https://www.google.com/s2/favicons?domain=${host}&sz=32`;
+      img.onerror = () => {
+        img.remove();
+        const fb = document.createElement('div');
+        fb.className = 'rb-fav-fallback';
+        fb.textContent = (x.title || host).charAt(0).toUpperCase();
+        item.appendChild(fb);
+      };
+      item.appendChild(img);
+    } else {
+      const fb = document.createElement('div');
+      fb.className = 'rb-fav-fallback';
+      fb.textContent = (x.title || '?').charAt(0).toUpperCase();
+      item.appendChild(fb);
+    }
+    list.appendChild(item);
+  });
+}
+
+function navToOrNewTab(url) {
+  const c = tabs.find(t => t.id === currentTabId);
+  if (c && !c._isBookmark) c.view.src = url;
+  else newTab(url);
+}
+
+// ---- ブックマーク内部ページ生成 ----
+function buildBookmarkPage() {
+  const bm = gb();
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const safeHost = u => { try { return new URL(u).hostname; } catch(e) { return ''; } };
+  const rows = bm.length ? bm.map((x, i) => {
+    const host = safeHost(x.url);
+    const fav = host ? `<img src="https://www.google.com/s2/favicons?domain=${host}" onerror="this.parentNode.innerText='·'" style="width:15px;height:15px;">` : '·';
+    return `<div class="item" onclick="go('${esc(x.url)}')">
+      <div class="fav">${fav}</div>
+      <div class="body">
+        <div class="ttl">${esc(x.title || x.url)}</div>
+        <div class="url">${esc(x.url)}</div>
+      </div>
+      <div class="del" onclick="event.stopPropagation();del(${i})">
+        <svg style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">ブックマークはありません<br><span>アドレスバー横の &#x1F516; ボタンで追加</span></div>';
+
+  return `data:text/html;charset=utf-8,` + encodeURIComponent(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f0f0f;color:#aaa;font-family:'Courier New',monospace;display:flex;flex-direction:column;height:100vh;}
+  .header{padding:14px 18px;border-bottom:1px solid #222;background:#141414;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .header svg{width:16px;height:16px;fill:none;stroke:#666;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .header h1{font-size:11px;letter-spacing:3px;color:#ccc;}
+  .search{padding:8px 14px;border-bottom:1px solid #1e1e1e;flex-shrink:0;background:#111;}
+  .search input{width:100%;padding:6px 10px;background:#1c1c1c;border:1px solid #2a2a2a;border-radius:4px;color:#bbb;font-family:monospace;font-size:11px;outline:none;}
+  .list{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#2a2a2a transparent;}
+  .item{padding:9px 14px;border-bottom:1px solid #181818;cursor:pointer;display:flex;align-items:center;gap:9px;transition:background 0.1s;}
+  .item:hover{background:#1a1a1a;}
+  .fav{width:15px;height:15px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#444;}
+  .body{flex:1;min-width:0;}
+  .ttl{font-size:11px;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .url{font-size:10px;color:#484848;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+  .del{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;color:#383838;cursor:pointer;transition:color 0.1s,background 0.1s;}
+  .del:hover{color:#aa4444;background:rgba(170,68,68,0.15);}
+  .empty{padding:60px 20px;text-align:center;color:#383838;font-size:11px;line-height:2;}
+  .empty span{font-size:10px;display:block;color:#303030;}
+</style></head><body>
+<div class="header">
+  <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+  <h1>BOOKMARKS</h1>
+</div>
+<div class="search"><input id="q" placeholder="search..." oninput="filter()"></div>
+<div class="list" id="list">${rows}</div>
+<script>
+  const data = ${JSON.stringify(bm)};
+  function go(u){location.href=u;}
+  function del(i){
+    let b=JSON.parse(localStorage.getItem('bb')||'[]');
+    b.splice(i,1);localStorage.setItem('bb',JSON.stringify(b));location.reload();
+  }
+  function filter(){
+    const q=document.getElementById('q').value.toLowerCase();
+    document.querySelectorAll('.item').forEach(el=>{el.style.display=el.innerText.toLowerCase().includes(q)?'':'none';});
+  }
+<\/script></body></html>`);
+}
+
+// ---- 右バー：ブックマークタブを開く ----
+function openBookmarkTab() {
+  const ex = tabs.find(t => t._isBookmark);
+  if (ex) { switchTab(ex.id); return; }
+  newTab('__bookmark__');
+}
+
+
+// ---- ユーティリティ ----
+function safeHost(url) { try { return new URL(url).hostname; } catch(e) { return ''; } }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ---- コスメティックフィルター ----
+const COSMETIC_CSS = `
+  /* Google広告 */
+  ins.adsbygoogle, .adsbygoogle,
+  [id^="google_ads_"], .GoogleActiveViewElement,
+
+  /* YouTube動画広告UI */
+  .ytp-ad-overlay-container,
+  .ytp-ad-text-overlay,
+  .ytp-ad-image-overlay,
+  .ytp-ad-player-overlay,
+  .ytp-ad-player-overlay-instream-info,
+  .ytp-ad-action-interstitial,
+  .ytp-ad-action-interstitial-slot,
+
+  /* YouTubeホーム・サイドバー広告 */
+  ytd-action-companion-ad-renderer,
+  ytd-promoted-sparkles-web-renderer,
+  ytd-promoted-video-renderer,
+  ytd-display-ad-renderer,
+  ytd-banner-promo-renderer,
+  ytd-statement-banner-renderer,
+  ytd-ad-slot-renderer,
+  ytd-in-feed-ad-layout-renderer,
+  ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+  ytd-rich-item-renderer:has(.ytd-display-ad-renderer),
+  tp-yt-paper-dialog.ytd-popup-container:has(ytd-mealbar-promo-renderer),
+  ytd-mealbar-promo-renderer,
+  ytd-primetime-promo-renderer,
+  ytd-hero-promo-block-renderer,
+  ytd-compact-promoted-video-renderer,
+  yt-about-this-ad-renderer,
+
+  /* 汎用広告パターン */
+  [class*="ad-unit"], [class*="ad-slot"],
+  [class*="advertisement"]:not(#description):not(.ytd-video-secondary-info-renderer),
+  iframe[src*="doubleclick.net"],
+  iframe[src*="googlesyndication.com"],
+
+  /* Taboola / Outbrain */
+  .trc_rbox_outer, .OUTBRAIN, [data-widget-id^="OB_"]
+
+  { display: none !important; visibility: hidden !important; }
+`;
+
+const YOUTUBE_SKIP_JS = `
+(function(){
+  if(window.__adSkipInjected) return;
+  window.__adSkipInjected = true;
+
+  function skipAd(){
+    // スキップボタンを全パターン試す
+    const skipSelectors = [
+      '.ytp-skip-ad-button',
+      '.ytp-ad-skip-button',
+      '.ytp-ad-skip-button-modern',
+      'button.ytp-ad-skip-button',
+      '[class*="skip-ad"]',
+      '[id*="skip-ad"]',
+    ];
+    for(const sel of skipSelectors){
+      const btn = document.querySelector(sel);
+      if(btn && btn.offsetParent !== null){ btn.click(); return; }
+    }
+
+    // スキップできない広告は動画を最後まで飛ばす
+    const video = document.querySelector('video');
+    const adShowing = document.querySelector('.ad-showing, .ytp-ad-module');
+    if(video && adShowing && isFinite(video.duration) && video.duration > 0){
+      video.currentTime = video.duration;
+      video.playbackRate = 16; // 速度も上げる
+    }
+
+    // プリロール広告のオーバーレイを非表示
+    const overlay = document.querySelector('.ytp-ad-overlay-container, .ytp-ad-text-overlay');
+    if(overlay) overlay.style.display = 'none';
+  }
+
+  // MutationObserverで広告要素の挿入を監視
+  const observer = new MutationObserver(() => skipAd());
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // 定期実行（500ms）
+  setInterval(skipAd, 500);
+
+  // ページ遷移後にも再実行
+  let lastUrl = location.href;
+  new MutationObserver(() => {
+    if(location.href !== lastUrl){
+      lastUrl = location.href;
+      setTimeout(skipAd, 1000);
+    }
+  }).observe(document.querySelector('title') || document.head, { childList: true });
+})();
+`;
+
+async function injectAdblockCSS(view) {
+  try {
+    const cfg = await ipcRenderer.invoke('get-settings');
+    if (!cfg.adblockEnabled) return;
+    await view.insertCSS(COSMETIC_CSS);
+    const url = view.getURL ? view.getURL() : '';
+    if (url.includes('youtube.com')) {
+      view.executeJavaScript(YOUTUBE_SKIP_JS).catch(()=>{});
+    }
+  } catch(e) {}
+}
+
+// ---- タブ管理 ----
+function newTab(url = 'https://www.google.com') {
+  const id = 'tab-' + Date.now();
+  const isBookmark = url === '__bookmark__';
+  const isSetting  = url === 'setting.html';
+
+  const tabEl = document.createElement('div'); tabEl.className = 'tab'; tabEl.id = 'btn-' + id;
+  tabEl.onclick = () => switchTab(id);
+  const favEl = document.createElement('div'); favEl.className = 'tab-fav';
+  favEl.innerHTML = isBookmark
+    ? `<svg style="width:11px;height:11px;fill:none;stroke:#888;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`
+    : '·';
+  const textSpan = document.createElement('span'); textSpan.className = 'tab-text';
+  textSpan.innerText = isBookmark ? 'Bookmarks' : (isSetting ? 'Settings' : 'Loading...');
+  const closeBtn = document.createElement('span'); closeBtn.className = 'tab-close'; closeBtn.innerText = '×';
+  closeBtn.onclick = (e) => { e.stopPropagation(); closeTab(id); };
+  tabEl.append(favEl, textSpan, closeBtn);
+  document.getElementById('tabs').appendChild(tabEl);
+
+  const view = document.createElement('webview');
+  const actualUrl = isBookmark ? 'bookmark.html' : url;
+  view.src = actualUrl; view.id = id;
+  view.setAttribute('nodeintegration', '');
+  view.setAttribute('webpreferences', 'contextIsolation=false');
+  document.getElementById('views').appendChild(view);
+
+  const obj = { id, tabEl, textSpan, favEl, view, _isBookmark: isBookmark, _isSetting: isSetting };
+  tabs.push(obj);
+
+  view.addEventListener('page-title-updated', (e) => {
+    if (!isBookmark) {
+      textSpan.innerText = e.title;
+      const u = view.getURL ? view.getURL() : '';
+      if (u) addHistory(u, e.title);
+    }
+  });
+
+  // 広告要素をCSSで非表示にする（コスメティックフィルター）
+  view.addEventListener('dom-ready', () => {
+    injectAdblockCSS(view);
+  });
+  view.addEventListener('did-navigate', (e) => {
+    if (!isBookmark) {
+      updateUrlBar(id, e.url);
+      addHistory(e.url, textSpan.innerText);
+      injectAdblockCSS(view);
+      const host = safeHost(e.url);
+      if (host) {
+        const img = new Image(); img.src = `https://www.google.com/s2/favicons?domain=${host}`;
+        img.onload = () => {
+          favEl.innerHTML = '';
+          const c = img.cloneNode(); c.style.cssText = 'width:13px;height:13px';
+          favEl.appendChild(c);
+        };
+      }
+    }
+  });
+
+  switchTab(id);
+}
+
+function switchTab(id) {
+  currentTabId = id;
+  tabs.forEach(t => {
+    const a = t.id === id;
+    t.view.classList.toggle('active', a);
+    t.tabEl.classList.toggle('active', a);
+    if (a) {
+      const url = (t.view.getURL ? t.view.getURL() : '') || t.view.src || '';
+      if (t._isBookmark) {
+        document.getElementById('url-bar').value = '810://bookmarks';
+        document.getElementById('views').classList.add('dark-views');
+      } else {
+        updateUrlBar(id, url);
+        const isSet = url.includes('setting.html');
+        t.view.classList.toggle('setting-wv', isSet);
+        document.getElementById('views').classList.toggle('dark-views', isSet);
+        if (isSet) sync();
+      }
+    }
+  });
+  // 右バー更新
+  renderRightBarFavs();
+  const cur = tabs.find(t => t.id === currentTabId);
+  document.getElementById('rb-bm').classList.toggle('rb-on', !!(cur && cur._isBookmark));
+  const curUrl = cur ? ((cur.view.getURL ? cur.view.getURL() : '') || cur.view.src || '') : '';
+  document.getElementById('rb-cfg').classList.toggle('rb-on', curUrl.includes('setting.html'));
+}
+
+function updateUrlBar(id, url) {
+  if (currentTabId !== id) return;
+  document.getElementById('url-bar').value = url.includes('setting.html') ? '810://settings' : url;
+}
+function settings() { newTab('setting.html'); }
+function go() {
+  let v = document.getElementById('url-bar').value.trim(); if (!v) return;
+  if (!v.includes('.') || v.includes(' ')) v = 'https://www.google.com/search?q=' + encodeURIComponent(v);
+  else if (!v.startsWith('http')) v = 'https://' + v;
+  const c = tabs.find(t => t.id === currentTabId);
+  if (c && !c._isBookmark) c.view.src = v;
+  else newTab(v);
+}
+function closeTab(id) {
+  if (tabs.length === 1) return;
+  const i = tabs.findIndex(t => t.id === id);
+  tabs[i].tabEl.remove(); tabs[i].view.remove(); tabs.splice(i, 1);
+  if (currentTabId === id) switchTab(tabs[i] ? tabs[i].id : tabs[i-1].id);
+}
+function back()    { const c = tabs.find(t => t.id === currentTabId); if (c && !c._isBookmark && c.view.canGoBack())    c.view.goBack(); }
+function forward() { const c = tabs.find(t => t.id === currentTabId); if (c && !c._isBookmark && c.view.canGoForward()) c.view.goForward(); }
+function reload()  { const c = tabs.find(t => t.id === currentTabId); if (c && !c._isBookmark) c.view.reload(); }
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'l') { document.getElementById('url-bar').focus(); document.getElementById('url-bar').select(); e.preventDefault(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 't') { newTab(); e.preventDefault(); }
+});
+
+renderRightBarFavs();
+newTab();
+</script>
+</body>
+</html>
